@@ -39,6 +39,24 @@ unsigned long right_test_time = 0;
 bool right_test_flag = false;
 bool right_is_obstacle = false;
 
+/* Trevor and Adam variables for nav algorithm */
+// Keep track of the available movements the car can make
+bool canDoMovement[]  = {false,   false,     false}; 
+//                       left,    forward,   right
+int numOptions = 0; // track number of direction options available to the car
+const int intersectRows = 100; // 100 possible intersections can be recorded
+const int intersectCols = 4; // col1: isActiveIntersectionItem?, col2: left, 
+// col3: forward, col4: right
+// easily create dynamically sizabl arrays in C++, so we must keep track of 
+// which items in the array are active and inactive with item 0 of each array.
+bool intersections[intersectRows][intersectCols];
+// For each array: 
+// item 0: is array active (intersection has been discovered and recorded),
+// item 1: can turn left
+// item 2: can move forward
+// item 3: can turn right
+int intersectionsPosition[100][2]; // track position of 
+
 void rightFilter(bool value)
 {
   if (right_flag[right_index])
@@ -200,97 +218,111 @@ void checkObstacle()
 
 void obstacleAvoidanceMode()
 {
+  /* Keep these four variables */
   unsigned int super_min = 3;
   unsigned int distance_min = 10;
   unsigned int distance_max = 45;
   unsigned int super_max = 400;
 
+  /* New navigation algorithm (Mar 22) */
+  
+  // 1. What is around me?
+  numOptions = CheckSurroundings(directionNames, directionBools);
+  // 2. If multiple options, go into intersection logic
+
+
+
+  /* Old Algorithm below */
+
   // If obstacles exist on left and right
-  if (left_is_obstacle && right_is_obstacle)
-  {
-    // 
-    if (distance_value >= distance_min && distance_max <= distance_max)
-    {
-      if (turn_count >= 0)
-      {
-        motion_mode = TURNRIGHT;
-        rgb.flashYellowColorRight();
-        turn_count++;
-      }
-      else
-      {
-        motion_mode = TURNLEFT;
-        rgb.flashYellowColorLeft();
-        turn_count--;
-      }
-    }
-    else
-    {
-      motion_mode = BACKWARD;
-      rgb.flashYellowColorback();
-    }
-  }
-  else if (left_is_obstacle && !right_is_obstacle)
-  {
-    motion_mode = TURNRIGHT;
-    rgb.flashYellowColorRight();
-    turn_count++;
-  }
-  else if (!left_is_obstacle && right_is_obstacle)
-  {
-    motion_mode = TURNLEFT;
-    rgb.flashYellowColorLeft();
-    turn_count--;
-  }
-  else
-  {
-    switch (obstacle_avoidance_flag)
-    {
-    case 0:
-      if (distance_value < distance_max || distance_value > super_max)
-      {
-        obstacle_avoidance_flag = 1;
-        motion_mode = STANDBY;
-        rgb.brightYellowColor();
-      }
-      else
-      {
-        motion_mode = FORWARD;
-        rgb.flashYellowColorFront();
-      }
-      break;
-    case 1:
-      if (distance_value >= distance_max && distance_value <= super_max)
-      {
-        obstacle_avoidance_flag = 0;
-        motion_mode = FORWARD;
-        rgb.flashYellowColorFront();
-      }
-      else if (distance_value >= super_min && distance_value <= distance_min)
-      {
-        motion_mode = BACKWARD;
-        rgb.flashYellowColorback();
-      }
-      else
-      {
-        if (turn_count >= 0)
-        {
-          motion_mode = TURNRIGHT;
-          rgb.flashYellowColorRight();
-          turn_count++;
-        }
-        else
-        {
-          motion_mode = TURNLEFT;
-          rgb.flashYellowColorLeft();
-          turn_count--;
-        }
-      }
-      break;
-    default:
-      break;
-    }
-  }
+  // Serial.print("turn_count: ");
+  // Serial.println(turn_count);
+  
+  // if (left_is_obstacle && right_is_obstacle)
+  // {
+  //   // 
+  //   if (distance_value >= distance_min && distance_max <= distance_max)
+  //   {
+  //     if (turn_count >= 0)
+  //     {
+  //       motion_mode = TURNRIGHT;
+  //       rgb.flashYellowColorRight();
+  //       turn_count++;
+  //     }
+  //     else
+  //     {
+  //       motion_mode = TURNLEFT;
+  //       rgb.flashYellowColorLeft();
+  //       turn_count--;
+  //     }
+  //   }
+  //   else
+  //   {
+  //     motion_mode = BACKWARD;
+  //     rgb.flashYellowColorback();
+  //   }
+  // }
+  // else if (left_is_obstacle && !right_is_obstacle)
+  // {
+  //   motion_mode = TURNRIGHT;
+  //   rgb.flashYellowColorRight();
+  //   turn_count++;
+  // }
+  // else if (!left_is_obstacle && right_is_obstacle)
+  // {
+  //   motion_mode = TURNLEFT;
+  //   rgb.flashYellowColorLeft();
+  //   turn_count--;
+  // }
+  // else
+  // {
+  //   switch (obstacle_avoidance_flag)
+  //   {
+  //   case 0:
+  //     if (distance_value < distance_max || distance_value > super_max)
+  //     {
+  //       obstacle_avoidance_flag = 1;
+  //       motion_mode = STANDBY;
+  //       rgb.brightYellowColor();
+  //     }
+  //     else
+  //     {
+  //       motion_mode = FORWARD;
+  //       rgb.flashYellowColorFront();
+  //     }
+  //     break;
+  //   case 1:
+  //     if (distance_value >= distance_max && distance_value <= super_max)
+  //     {
+  //       obstacle_avoidance_flag = 0;
+  //       motion_mode = FORWARD;
+  //       rgb.flashYellowColorFront();
+  //     }
+  //     else if (distance_value >= super_min && distance_value <= distance_min)
+  //     {
+  //       motion_mode = BACKWARD;
+  //       rgb.flashYellowColorback();
+  //     }
+  //     else
+  //     {
+  //       if (turn_count >= 0)
+  //       {
+  //         motion_mode = TURNRIGHT;
+  //         rgb.flashYellowColorRight();
+  //         turn_count++;
+  //       }
+  //       else
+  //       {
+  //         motion_mode = TURNLEFT;
+  //         rgb.flashYellowColorLeft();
+  //         turn_count--;
+  //       }
+  //     }
+  //     break;
+  //   default:
+  //     break;
+  //   }
+  // }
 }
 
 void followMode()
