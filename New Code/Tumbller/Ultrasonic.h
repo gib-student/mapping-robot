@@ -55,7 +55,19 @@ bool intersections[intersectRows][intersectCols];
 // item 1: can turn left
 // item 2: can move forward
 // item 3: can turn right
-int intersectionsPosition[100][2]; // track position of 
+int intersectionsPosition[100][2]; // track position of left/right
+// item 0: active
+// item 1: position
+bool left = false;
+bool right = false;
+bool straight = false;
+bool hitDeadEnd = false;
+int intersectionsIndex = -1;
+
+// Turning variables
+bool turningCommenced = false;
+bool turnSequenceInitialized = false;
+unsigned long turnSequenceStartTime = 0;
 
 void rightFilter(bool value)
 {
@@ -218,6 +230,7 @@ void checkObstacle()
 
 void obstacleAvoidanceMode()
 {
+  Serial.println("Enter Obstacle Avoidance Mode");
   /* Keep these four variables */
   unsigned int super_min = 3;
   unsigned int distance_min = 10;
@@ -225,15 +238,173 @@ void obstacleAvoidanceMode()
   unsigned int super_max = 400;
 
   /* New navigation algorithm (Mar 22) */
-  
+
+  // Are there obstacles around me?
   // 1. What is around me?
-  numOptions = CheckSurroundings(directionNames, directionBools);
-  // 2. If multiple options, go into intersection logic
+  if (!turningCommenced) // Only update obstacles while we are not in a 
+  // special sequence of movements, to prevent a sequence from being
+  // prematuraly terminated
+  {
+    canDoMovement[0] = !left_is_obstacle;
+    canDoMovement[1] = distance_value >= distance_min;
+    canDoMovement[2] = !right_is_obstacle;
+    left      = canDoMovement[0]; // left
+    straight  = canDoMovement[1]; // straight
+    right     = canDoMovement[2]; // right
+
+    // Quantify movement options
+    // one option
+    if ((!left && !straight && right) ||
+        (!left && straight && !right) ||
+        (left && !straight && !right)) {
+      numOptions = 1;
+    }
+    // 2 options
+    else if ((!left && straight && right) ||
+            (left && straight && !right) ||
+            (left && !straight && right)) {
+      numOptions = 2;
+    }
+    // 3 options
+    else if (left && straight && right) {
+      numOptions = 3;
+    }
+    // no options
+    else {numOptions = 0;}
+  }
 
 
+  // 2. If one option, do normal movement
+  if (numOptions == 1)
+  {
+    // normal movement logic
+    if (left)
+    {
+      if (turningCommenced == false) {turningCommenced = true;}
+      // Turn sequence
+      if (!turnSequenceInitialized) {
+        turnSequenceStartTime = millis();
+        turnSequenceInitialized = true;
+      }
+      // for the first 1 seconds, go straight
+      if (millis() - turnSequenceStartTime < 1000)
+      {
+        motion_mode = FORWARD;
+      }
+      // pause for one second 
+      if (millis() - turnSequenceStartTime < 2000) {
+        motion_mode = STANDBY;
+      }
+      // then, for the next 2 seconds, turn left
+      else if (millis() - turnSequenceStartTime < 4000) {
+        motion_mode = TURNLEFT;
+        turn_count --;
+      }
+      // pause for another second
+      else if (millis() - turnSequenceStartTime < 5000) {
+        motion_mode = STANDBY;
+      }
+      // continue straight for another 1 second.
+      else if (millis() - turnSequenceStartTime < 6000) {
+        motion_mode = FORWARD;
+      }
+      else {
+        turnSequenceInitialized = false;
+        turningCommenced = false;
+      }
+    }
+
+    else if (straight)
+    {
+      // go straight
+      motion_mode = FORWARD;
+    }
+    else if (right)
+    {
+      if (turningCommenced == false) {turningCommenced = true;} // tell the 
+      // rest of our program that we are now in a turn sequence which should
+      // not be interrupted.
+
+      // Turn sequence
+      if (!turnSequenceInitialized) {
+        turnSequenceStartTime = millis();
+        turnSequenceInitialized = true;
+      }
+      // for the first 1 seconds, go straight
+      if (millis() - turnSequenceStartTime < 1000)
+      {
+        motion_mode = FORWARD;
+      }
+      // pause for one second 
+      if (millis() - turnSequenceStartTime < 2000) {
+        motion_mode = STANDBY;
+      }
+      // then, for the next 2 seconds, turn left
+      else if (millis() - turnSequenceStartTime < 4000) {
+        motion_mode = TURNRIGHT;
+        turn_count ++;
+      }
+      // pause for another second
+      else if (millis() - turnSequenceStartTime < 5000) {
+        motion_mode = STANDBY;
+      }
+      // continue straight for another 1 second.
+      else if (millis() - turnSequenceStartTime < 6000) {
+        motion_mode = FORWARD;
+      }
+      else {
+        turnSequenceInitialized = false;
+        turningCommenced = false;
+      }
+    }
+  }
+  // else if more than one option, do intersection logic
+  else if (numOptions > 1)
+  {
+    motion_mode = STANDBY; // temporary (may not need it later)
+    // intersection logic
+    if (!hitDeadEnd) { // assume we have encountered a new intersection.
+      intersectionsIndex ++; // move to the next item in the intersections array
+      // Create a new array in our intersections array
+      intersections[intersectionsIndex][0] = true;      // set to active
+      intersections[intersectionsIndex][1] = left;      // record obstacle
+      intersections[intersectionsIndex][2] = straight;  // record obstacle
+      intersections[intersectionsIndex][3] = right;     // record obstacle
+      
+      // Make a decision on where to go.
+    }
+  }
+  // This means we have encountered a dead-end, and need to turn around.
+  else if (numOptions < 1) {
+    // Turn around
+    if (turningCommenced == false) {turningCommenced = true;} // tell the 
+      // rest of our program that we are now in a turn sequence which should
+      // not be interrupted.
+
+      // Turn sequence
+      if (!turnSequenceInitialized) {
+        turnSequenceStartTime = millis();
+        turnSequenceInitialized = true;
+      }
+      // for the first 3 seconds, turn left
+      if (millis() - turnSequenceStartTime < 3000)
+      {
+        motion_mode = TURNLEFT;
+        turn_count --;
+      }
+      // pause for one second 
+      if (millis() - turnSequenceStartTime < 4000) {
+        motion_mode = STANDBY;
+      }
+      // once the turn sequence is finished, tell the rest of our program to 
+      // resume as normal.
+      else {
+        turnSequenceInitialized = false;
+        turningCommenced = false;
+      }
+  }
 
   /* Old Algorithm below */
-
   // If obstacles exist on left and right
   // Serial.print("turn_count: ");
   // Serial.println(turn_count);
@@ -276,52 +447,52 @@ void obstacleAvoidanceMode()
   // }
   // else
   // {
-  //   switch (obstacle_avoidance_flag)
-  //   {
-  //   case 0:
-  //     if (distance_value < distance_max || distance_value > super_max)
-  //     {
-  //       obstacle_avoidance_flag = 1;
-  //       motion_mode = STANDBY;
-  //       rgb.brightYellowColor();
-  //     }
-  //     else
-  //     {
-  //       motion_mode = FORWARD;
-  //       rgb.flashYellowColorFront();
-  //     }
-  //     break;
-  //   case 1:
-  //     if (distance_value >= distance_max && distance_value <= super_max)
-  //     {
-  //       obstacle_avoidance_flag = 0;
-  //       motion_mode = FORWARD;
-  //       rgb.flashYellowColorFront();
-  //     }
-  //     else if (distance_value >= super_min && distance_value <= distance_min)
-  //     {
-  //       motion_mode = BACKWARD;
-  //       rgb.flashYellowColorback();
-  //     }
-  //     else
-  //     {
-  //       if (turn_count >= 0)
-  //       {
-  //         motion_mode = TURNRIGHT;
-  //         rgb.flashYellowColorRight();
-  //         turn_count++;
-  //       }
-  //       else
-  //       {
-  //         motion_mode = TURNLEFT;
-  //         rgb.flashYellowColorLeft();
-  //         turn_count--;
-  //       }
-  //     }
-  //     break;
-  //   default:
-  //     break;
-  //   }
+    // switch (obstacle_avoidance_flag)
+    // {
+    // case 0:
+    //   if (distance_value < distance_max || distance_value > super_max)
+    //   {
+    //     obstacle_avoidance_flag = 1;
+    //     motion_mode = STANDBY;
+    //     rgb.brightYellowColor();
+    //   }
+    //   else
+    //   {
+    //     motion_mode = FORWARD;
+    //     rgb.flashYellowColorFront();
+    //   }
+    //   break;
+    // case 1:
+    //   if (distance_value >= distance_max && distance_value <= super_max)
+    //   {
+    //     obstacle_avoidance_flag = 0;
+    //     motion_mode = FORWARD;
+    //     rgb.flashYellowColorFront();
+    //   }
+    //   else if (distance_value >= super_min && distance_value <= distance_min)
+    //   {
+    //     motion_mode = BACKWARD;
+    //     rgb.flashYellowColorback();
+    //   }
+    //   else
+    //   {
+    //     if (turn_count >= 0)
+    //     {
+    //       motion_mode = TURNRIGHT;
+    //       rgb.flashYellowColorRight();
+    //       turn_count++;
+    //     }
+    //     else
+    //     {
+    //       motion_mode = TURNLEFT;
+    //       rgb.flashYellowColorLeft();
+    //       turn_count--;
+    //     }
+    //   }
+    //   break;
+    // default:
+    //   break;
+    // }
   // }
 }
 

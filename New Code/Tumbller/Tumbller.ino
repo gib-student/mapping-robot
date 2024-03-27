@@ -23,6 +23,7 @@ void functionMode()
   switch (function_mode)
   {
   case IDLE:
+    obstacleAvoidanceMode(); // debug
     break;
   case IRREMOTE:
     break;
