@@ -44,20 +44,25 @@ bool right_is_obstacle = false;
 bool canDoMovement[]  = {false,   false,     false}; 
 //                       left,    forward,   right
 int numOptions = 0; // track number of direction options available to the car
-const int intersectRows = 100; // 100 possible intersections can be recorded
-const int intersectCols = 4; // col1: isActiveIntersectionItem?, col2: left, 
+const int intersectionRows = 100; // 100 possible intersections can be recorded
+const int intersectionCols = 4; // col1: isActiveIntersectionItem?, col2: left, 
 // col3: forward, col4: right
 // easily create dynamically sizabl arrays in C++, so we must keep track of 
 // which items in the array are active and inactive with item 0 of each array.
-bool intersections[intersectRows][intersectCols];
+bool intersections[intersectionRows][intersectionCols];
 // For each array: 
 // item 0: is array active (intersection has been discovered and recorded),
 // item 1: can turn left
 // item 2: can move forward
 // item 3: can turn right
-int intersectionsPosition[100][2]; // track position of left/right
-// item 0: active
-// item 1: position
+int lastIntersectionTurns[100]; // record the last direction we took at 
+// an intersection
+// if item == 0: inactive
+// if item == 1: left
+// if item == 2: straight
+// if item == 3: right
+int lastIntersectionTurnsIndex = -1; // track position in lastIntersectionTurns array
+
 bool left = false;
 bool right = false;
 bool straight = false;
@@ -65,9 +70,13 @@ bool hitDeadEnd = false;
 int intersectionsIndex = -1;
 
 // Turning variables
-bool turningCommenced = false;
-bool turnSequenceInitialized = false;
-unsigned long turnSequenceStartTime = 0;
+bool movementCommenced = false;
+bool movementSequenceInitialized = false;
+unsigned long movementSequenceStartTime = 0;
+
+// Prototypes
+void turnLeftSequence();
+void turnRightSequence();
 
 void rightFilter(bool value)
 {
@@ -153,6 +162,18 @@ void ultrasonicInit()
   pinMode(RIGHT_RECEIVE_PIN, INPUT_PULLUP);
   attachPinChangeInterrupt(LEFT_RECEIVE_PIN, leftReceive, FALLING);
   attachPinChangeInterrupt(RIGHT_RECEIVE_PIN, rightReceive, FALLING);
+
+  // initialize intersections array
+  for (int i = 0; i < intersectionRows; i++) {
+    for (int i2 = 0; i < intersectionCols; i++) {
+      intersections[i][i2] = false;
+    }
+  }
+
+  // initialize lastIntersectionTurn array 
+  for (int i = 0; i < 100; i++) {
+    lastIntersectionTurns[i] = 0;
+  }
 }
 
 void checkObstacle()
@@ -241,7 +262,7 @@ void obstacleAvoidanceMode()
 
   // Are there obstacles around me?
   // 1. What is around me?
-  if (!turningCommenced) // Only update obstacles while we are not in a 
+  if (!movementCommenced) // Only update obstacles while we are not in a 
   // special sequence of movements, to prevent a sequence from being
   // prematuraly terminated
   {
@@ -280,82 +301,17 @@ void obstacleAvoidanceMode()
     // normal movement logic
     if (left)
     {
-      if (turningCommenced == false) {turningCommenced = true;}
-      // Turn sequence
-      if (!turnSequenceInitialized) {
-        turnSequenceStartTime = millis();
-        turnSequenceInitialized = true;
-      }
-      // for the first 1 seconds, go straight
-      if (millis() - turnSequenceStartTime < 1000)
-      {
-        motion_mode = FORWARD;
-      }
-      // pause for one second 
-      if (millis() - turnSequenceStartTime < 2000) {
-        motion_mode = STANDBY;
-      }
-      // then, for the next 2 seconds, turn left
-      else if (millis() - turnSequenceStartTime < 4000) {
-        motion_mode = TURNLEFT;
-        turn_count --;
-      }
-      // pause for another second
-      else if (millis() - turnSequenceStartTime < 5000) {
-        motion_mode = STANDBY;
-      }
-      // continue straight for another 1 second.
-      else if (millis() - turnSequenceStartTime < 6000) {
-        motion_mode = FORWARD;
-      }
-      else {
-        turnSequenceInitialized = false;
-        turningCommenced = false;
-      }
+      turnLeftSequence();
     }
 
     else if (straight)
     {
       // go straight
-      motion_mode = FORWARD;
+      moveForward();
     }
     else if (right)
     {
-      if (turningCommenced == false) {turningCommenced = true;} // tell the 
-      // rest of our program that we are now in a turn sequence which should
-      // not be interrupted.
-
-      // Turn sequence
-      if (!turnSequenceInitialized) {
-        turnSequenceStartTime = millis();
-        turnSequenceInitialized = true;
-      }
-      // for the first 1 seconds, go straight
-      if (millis() - turnSequenceStartTime < 1000)
-      {
-        motion_mode = FORWARD;
-      }
-      // pause for one second 
-      if (millis() - turnSequenceStartTime < 2000) {
-        motion_mode = STANDBY;
-      }
-      // then, for the next 2 seconds, turn left
-      else if (millis() - turnSequenceStartTime < 4000) {
-        motion_mode = TURNRIGHT;
-        turn_count ++;
-      }
-      // pause for another second
-      else if (millis() - turnSequenceStartTime < 5000) {
-        motion_mode = STANDBY;
-      }
-      // continue straight for another 1 second.
-      else if (millis() - turnSequenceStartTime < 6000) {
-        motion_mode = FORWARD;
-      }
-      else {
-        turnSequenceInitialized = false;
-        turningCommenced = false;
-      }
+      turnRightSequence();
     }
   }
   // else if more than one option, do intersection logic
@@ -363,7 +319,9 @@ void obstacleAvoidanceMode()
   {
     motion_mode = STANDBY; // temporary (may not need it later)
     // intersection logic
-    if (!hitDeadEnd) { // assume we have encountered a new intersection.
+
+    // assume we have encountered a new intersection.
+    if (!hitDeadEnd) {
       intersectionsIndex ++; // move to the next item in the intersections array
       // Create a new array in our intersections array
       intersections[intersectionsIndex][0] = true;      // set to active
@@ -372,128 +330,133 @@ void obstacleAvoidanceMode()
       intersections[intersectionsIndex][3] = right;     // record obstacle
       
       // Make a decision on where to go.
+      int turn = 0;
+      if (left) {
+        turnLeftSequence();
+        turn = 1;
+      }
+      else if (straight) {
+        moveForward();
+        turn = 2;
+      }
+      else if (right) {
+        turnRightSequence();
+        turn = 3;
+      }
+      lastIntersectionTurnsIndex++; // increment position in array
+      lastIntersectionTurns[lastIntersectionTurnsIndex] = turn;
+    }
+    
+    // We have recently hit a dead end and are returning to an intersection we've
+    // already seen
+    else {
+      // Do not increment the intersectionsIndex, because we assume it's the last
+      // intersection we've seen. 
+      int lastTurn = lastIntersectionTurns[lastIntersectionTurnsIndex];
+      lastIntersectionTurns[lastIntersectionTurnsIndex] = 0; // remove last turn
+      // from the list because it leads to a dead end
+      lastIntersectionTurnsIndex --;
+      left      = intersections[1];
+      straight  = intersections[2];
+      right     = intersections[3];
+
+      // orient ourselves
+      if (lastTurn == 1) { // if we turned left at the last intersection
+        left = straight;  // our new left is our previous straight
+        straight = right; // our new straight is our previous right
+        
+        if (left) {
+          turnLeftSequence();
+          hitDeadEnd = false;
+        }
+        else if (straight) {
+          moveForward();
+          hitDeadEnd = false;
+        }
+        else {
+          turnRightSequence();
+          // if we return from where we came, we want to keep hitDeadEnd active
+
+          if (!movementCommenced) {
+            for (int i = 0; i < 4; i++) {
+              intersections[intersectionsIndex][i] = false;
+            }
+            intersectionsIndex--;
+          }
+        }
+      }
+
+      else if (lastTurn == 2) { // if we went straight at our last intersection
+        right = left;
+
+        // we shouldn't be able to turn left because we just went forward,
+        // since we always prioritize going left first
+        if (right) {
+          turnRightSequence();
+          hitDeadEnd = false;
+        }
+        else { // only return from where we came if it's the last option
+          moveForward();
+          // if we return from where we came, we want to keep hitDeadEnd active
+          
+          if (!movementCommenced) {
+            for (int i = 0; i < 4; i++) {
+              intersections[intersectionsIndex][i] = false;
+            }
+            intersectionsIndex--;
+          }
+        }
+      }
+
+      else if (lastTurn == 3) { // if we went right at our last intersection
+        // in this case, we know that the only passable direction is to our
+        // left. we must remove the last intersection off the stack, decrement
+        // its index, and also remove the lastIntersectionTurns item off the
+        // stack and decrement its index. 
+        
+        turnLeftSequence(); // return from where we came
+        // if we return from where we came, we want to keep hitDeadEnd active
+        
+        if (!movementCommenced) {
+          for (int i = 0; i < 4; i++) {
+            intersections[intersectionsIndex][i] = false;
+          }
+          intersectionsIndex--;
+        }
+      }
     }
   }
   // This means we have encountered a dead-end, and need to turn around.
   else if (numOptions < 1) {
+    // Record that we've hit a dead end
+    hitDeadEnd = true;
     // Turn around
-    if (turningCommenced == false) {turningCommenced = true;} // tell the 
+    if (movementCommenced == false) {movementCommenced = true;} // tell the 
       // rest of our program that we are now in a turn sequence which should
       // not be interrupted.
 
       // Turn sequence
-      if (!turnSequenceInitialized) {
-        turnSequenceStartTime = millis();
-        turnSequenceInitialized = true;
+      if (!movementSequenceInitialized) {
+        movementSequenceStartTime = millis();
+        movementSequenceInitialized = true;
       }
       // for the first 3 seconds, turn left
-      if (millis() - turnSequenceStartTime < 3000)
+      if (millis() - movementSequenceStartTime < 3000)
       {
         motion_mode = TURNLEFT;
         turn_count --;
       }
       // pause for one second 
-      if (millis() - turnSequenceStartTime < 4000) {
+      if (millis() - movementSequenceStartTime < 4000) {
         motion_mode = STANDBY;
       }
       // once the turn sequence is finished, tell the rest of our program to 
       // resume as normal.
       else {
-        turnSequenceInitialized = false;
-        turningCommenced = false;
+        movementSequenceInitialized = false;
+        movementCommenced = false;
       }
   }
-
-  /* Old Algorithm below */
-  // If obstacles exist on left and right
-  // Serial.print("turn_count: ");
-  // Serial.println(turn_count);
-  
-  // if (left_is_obstacle && right_is_obstacle)
-  // {
-  //   // 
-  //   if (distance_value >= distance_min && distance_max <= distance_max)
-  //   {
-  //     if (turn_count >= 0)
-  //     {
-  //       motion_mode = TURNRIGHT;
-  //       rgb.flashYellowColorRight();
-  //       turn_count++;
-  //     }
-  //     else
-  //     {
-  //       motion_mode = TURNLEFT;
-  //       rgb.flashYellowColorLeft();
-  //       turn_count--;
-  //     }
-  //   }
-  //   else
-  //   {
-  //     motion_mode = BACKWARD;
-  //     rgb.flashYellowColorback();
-  //   }
-  // }
-  // else if (left_is_obstacle && !right_is_obstacle)
-  // {
-  //   motion_mode = TURNRIGHT;
-  //   rgb.flashYellowColorRight();
-  //   turn_count++;
-  // }
-  // else if (!left_is_obstacle && right_is_obstacle)
-  // {
-  //   motion_mode = TURNLEFT;
-  //   rgb.flashYellowColorLeft();
-  //   turn_count--;
-  // }
-  // else
-  // {
-    // switch (obstacle_avoidance_flag)
-    // {
-    // case 0:
-    //   if (distance_value < distance_max || distance_value > super_max)
-    //   {
-    //     obstacle_avoidance_flag = 1;
-    //     motion_mode = STANDBY;
-    //     rgb.brightYellowColor();
-    //   }
-    //   else
-    //   {
-    //     motion_mode = FORWARD;
-    //     rgb.flashYellowColorFront();
-    //   }
-    //   break;
-    // case 1:
-    //   if (distance_value >= distance_max && distance_value <= super_max)
-    //   {
-    //     obstacle_avoidance_flag = 0;
-    //     motion_mode = FORWARD;
-    //     rgb.flashYellowColorFront();
-    //   }
-    //   else if (distance_value >= super_min && distance_value <= distance_min)
-    //   {
-    //     motion_mode = BACKWARD;
-    //     rgb.flashYellowColorback();
-    //   }
-    //   else
-    //   {
-    //     if (turn_count >= 0)
-    //     {
-    //       motion_mode = TURNRIGHT;
-    //       rgb.flashYellowColorRight();
-    //       turn_count++;
-    //     }
-    //     else
-    //     {
-    //       motion_mode = TURNLEFT;
-    //       rgb.flashYellowColorLeft();
-    //       turn_count--;
-    //     }
-    //   }
-    //   break;
-    // default:
-    //   break;
-    // }
-  // }
 }
 
 void followMode()
@@ -669,5 +632,99 @@ void getDistance()
     digitalWrite(TRIG_PIN, HIGH);
     delayMicroseconds(10);
     digitalWrite(TRIG_PIN, LOW);
+  }
+}
+
+void turnLeftSequence() {
+  if (movementCommenced == false) {movementCommenced = true;}
+  // Turn sequence
+  if (!movementSequenceInitialized) {
+    movementSequenceStartTime = millis();
+    movementSequenceInitialized = true;
+  }
+  // for the first 1 seconds, go straight
+  if (millis() - movementSequenceStartTime < 1000)
+  {
+    motion_mode = FORWARD;
+  }
+  // pause for one second 
+  if (millis() - movementSequenceStartTime < 2000) {
+    motion_mode = STANDBY;
+  }
+  // then, for the next 2 seconds, turn left
+  else if (millis() - movementSequenceStartTime < 4000) {
+    motion_mode = TURNLEFT;
+    turn_count --;
+  }
+  // pause for another second
+  else if (millis() - movementSequenceStartTime < 5000) {
+    motion_mode = STANDBY;
+  }
+  // continue straight for another 1 second.
+  else if (millis() - movementSequenceStartTime < 6000) {
+    motion_mode = FORWARD;
+  }
+  else {
+    movementSequenceInitialized = false;
+    movementCommenced = false;
+  }
+}
+
+void turnRightSequence() {
+  if (movementCommenced == false) {movementCommenced = true;} // tell the 
+  // rest of our program that we are now in a turn sequence which should
+  // not be interrupted.
+
+  // Turn sequence
+  if (!movementSequenceInitialized) {
+    movementSequenceStartTime = millis();
+    movementSequenceInitialized = true;
+  }
+  // for the first 1 seconds, go straight
+  if (millis() - movementSequenceStartTime < 1000)
+  {
+    motion_mode = FORWARD;
+  }
+  // pause for one second 
+  if (millis() - movementSequenceStartTime < 2000) {
+    motion_mode = STANDBY;
+  }
+  // then, for the next 2 seconds, turn left
+  else if (millis() - movementSequenceStartTime < 4000) {
+    motion_mode = TURNRIGHT;
+    turn_count ++;
+  }
+  // pause for another second
+  else if (millis() - movementSequenceStartTime < 5000) {
+    motion_mode = STANDBY;
+  }
+  // continue straight for another 1 second.
+  else if (millis() - movementSequenceStartTime < 6000) {
+    motion_mode = FORWARD;
+  }
+  else {
+    movementSequenceInitialized = false;
+    movementCommenced = false;
+  }
+}
+
+void moveForward() {
+  if (movementCommenced == false) {movementCommenced = true;} // tell the 
+  // rest of our program that we are now in a movement sequence which should
+  // not be interrupted.
+  
+  // Movement sequence
+  if (!movementSequenceInitialized) {
+    movementSequenceStartTime = millis();
+    movementSequenceInitialized = true;
+  }
+  // for the first 2 seconds, go straight
+  if (millis() - movementSequenceStartTime < 2000)
+  {
+    motion_mode = FORWARD;
+  }
+  else {
+    movementSequenceInitialized = false;
+    movementCommenced = false;
   }
 }
