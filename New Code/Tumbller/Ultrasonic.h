@@ -317,7 +317,6 @@ void obstacleAvoidanceMode()
   // else if more than one option, do intersection logic
   else if (numOptions > 1)
   {
-    motion_mode = STANDBY; // temporary (may not need it later)
     // intersection logic
 
     // assume we have encountered a new intersection.
@@ -377,7 +376,7 @@ void obstacleAvoidanceMode()
           turnRightSequence();
           // if we return from where we came, we want to keep hitDeadEnd active
 
-          if (!movementCommenced) {
+          if (!movementCommenced) { // we want this to occur only once
             for (int i = 0; i < 4; i++) {
               intersections[intersectionsIndex][i] = false;
             }
@@ -399,7 +398,7 @@ void obstacleAvoidanceMode()
           moveForward();
           // if we return from where we came, we want to keep hitDeadEnd active
           
-          if (!movementCommenced) {
+          if (!movementCommenced) { // we want this to occur only once
             for (int i = 0; i < 4; i++) {
               intersections[intersectionsIndex][i] = false;
             }
@@ -417,7 +416,7 @@ void obstacleAvoidanceMode()
         turnLeftSequence(); // return from where we came
         // if we return from where we came, we want to keep hitDeadEnd active
         
-        if (!movementCommenced) {
+        if (!movementCommenced) { // we want this to occur only once
           for (int i = 0; i < 4; i++) {
             intersections[intersectionsIndex][i] = false;
           }
