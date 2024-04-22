@@ -31,7 +31,7 @@ Autonomous navigation through pathfinding algorithms (development not fully impl
 
 This project was a learning experience focused on embedded systems and sensor integration. While a fully functional, self-driving robot wasn't achieved due to time limitations, the project successfully explored:
 
-* C++
+* C++ & C langauges
 * Ultrasonic and infrared sensor interfacing with Arduino Uno
 * Basic obstacle detection logic
 * I2C communication for gyroscope data acquisition
