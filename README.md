@@ -1,5 +1,5 @@
 # mapping-robot
-**Self-Driving Robot with Obstacle Avoidance**
+## Self-Driving Robot with Obstacle Avoidance
 
 This project aimed to develop a two-wheeled, self-driving robot capable of navigating its a maze using ultrasonic and infrared sensors. The robot was designed and prototyped using an Arduino Uno microcontroller programmed in the Arduino IDE. Group members include Trevor Gibb and Adam Foster. Team Leader: Trevor Gibb
 
