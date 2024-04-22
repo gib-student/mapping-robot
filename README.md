@@ -3,12 +3,14 @@
 
 This project aimed to develop a two-wheeled, self-driving robot capable of navigating its a maze using ultrasonic and infrared sensors. The robot was designed and prototyped using an Arduino Uno microcontroller programmed in the Arduino IDE. Group members include Trevor Gibb and Adam Foster. Team Leader: Trevor Gibb
 
-**Key Features:**
+
+## Key Features:
 
 Obstacle detection and avoidance using ultrasonic and infrared sensors.
 Autonomous navigation through pathfinding algorithms (development not fully implemented due to time constraints).
 
-**Hardware**
+
+## Hardware
 
 * Arduino Uno microcontroller
 * Gyroscope & Accelerometer (MPU-6050)
@@ -19,12 +21,14 @@ Autonomous navigation through pathfinding algorithms (development not fully impl
 * Expansion board (connects parts and power supply together)
 * RGB LEDs
 
-**Software:**
+
+## Software:
 
 * Arduino IDE for programming
 * I2C communication for gyroscope integration
 
-**Status:**
+
+## Status:
 
 This project was a learning experience focused on embedded systems and sensor integration. While a fully functional, self-driving robot wasn't achieved due to time limitations, the project successfully explored:
 
@@ -33,7 +37,8 @@ This project was a learning experience focused on embedded systems and sensor in
 * I2C communication for gyroscope data acquisition
 * Timers
 
-**Key Learnings:**
+
+## Key Learnings:
 
 * Progressed beyond writing code to understanding its execution on embedded systems
 * Developed proficiency in obstacle detection and avoidance using ultrasonic and infrared sensors
@@ -41,7 +46,8 @@ This project was a learning experience focused on embedded systems and sensor in
 * Developed a grasp of how embedded systems function by effectively integrating hardware and software components
 * I2C communication protocol for sensor integration
 
-**Etc.**
+
+## Etc.
 
 * Slides for presentation can be found here: https://1drv.ms/p/s!Av1Mr2INJ3D5iTg51S3YhZ4rr0eI?e=uo5Da9
 * The navigation algorithm can be found in nav_algorithm.pdf. This algorithm can also be found in Tumbller > Ultrasonic.h > obstacleAvoidanceMode().
