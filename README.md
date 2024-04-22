@@ -44,5 +44,5 @@ This project was a learning experience focused on embedded systems and sensor in
 **Etc.**
 
 * Slides for presentation can be found here: https://1drv.ms/p/s!Av1Mr2INJ3D5iTg51S3YhZ4rr0eI?e=uo5Da9
-* The navigation algorithm can be found in nav_algorithm.pdf. This algorithm is found in Project > Ultrasonic.h > obstacleAvoidanceMode().
+* The navigation algorithm can be found in nav_algorithm.pdf. This algorithm can also be found in Tumbller > Ultrasonic.h > obstacleAvoidanceMode().
 * Some of this code was provided to us from the manufacturer by the robot. Due to limited time and team members, we didn't have time to do some things, like learn about the calculations associated with the gyroscope and sensors.
